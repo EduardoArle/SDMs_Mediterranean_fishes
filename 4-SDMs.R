@@ -18,11 +18,30 @@ wd_proj_future <- '/Users/carloseduardoaribeiro/Documents/Post-doc/ENMs_med/Mode
 
 #load present variable layers
 setwd(wd_vars_pr)
-vars <- stack(lapply(list.files(pattern = '.tif$'), raster))
+vars <- lapply(list.files(pattern = '.tif$'), raster)
+
+#name variables
+names(vars) <- lapply(vars, names)
+
+#stack variables 
+vars_minT <- stack(vars$so_min, vars$phyc_mean, vars$sws_mean, vars$thetao_min)
+vars_meanT <- stack(vars$so_min, vars$phyc_mean, vars$sws_mean, vars$thetao_mean)
+vars_maxT <- stack(vars$so_min, vars$phyc_mean, vars$sws_mean, vars$thetao_max)
 
 #load 2090 variable layers
 setwd(wd_vars_2090)
-vars_2090 <- stack(lapply(list.files(pattern = '.tif$'), raster))
+vars_2090 <- lapply(list.files(pattern = '.tif$'), raster)
+
+#name variables
+names(vars_2090) <- lapply(vars_2090, names)
+
+#stack variables 
+vars_minT_fut <- stack(vars_2090$so_min, vars_2090$phyc_mean,
+                       vars_2090$sws_mean, vars_2090$thetao_min)
+vars_meanT_fut <- stack(vars_2090$so_min, vars_2090$phyc_mean,
+                        vars_2090$sws_mean, vars_2090$thetao_mean)
+vars_maxT_fut <- stack(vars_2090$so_min, vars_2090$phyc_mean,
+                       vars_2090$sws_mean, vars_2090$thetao_max)
 
 #load occurrence data
 setwd(wd_pr_pa)
@@ -49,10 +68,31 @@ for(i in 1:length(occ_data_sp))
 }
 
 #extract values from all points
-vals <- as.data.frame(extract(vars, occ_data_sp))
+vals_minT <- lapply(occ_data_sp, function(x){
+  as.data.frame(extract(vars_minT, x))
+})
 
-#prepare data frame
-vals2 <- cbind(data_model2$occurrence, vals)
+vals_meanT <- lapply(occ_data_sp, function(x){
+  as.data.frame(extract(vars_meanT, x))
+})
+
+vals_maxT <- lapply(occ_data_sp, function(x){
+  as.data.frame(extract(vars_maxT, x))
+})
+
+#prepare data frames (only species with enough data and no corel issues)
+vals_minT_2 <- list()
+for(i in length(vals_minT))
+{
+  #check whether there are at least half PA as pr
+  if(length(which(occ_data_2[[i]]$occurrence == 0)) >= 
+     length(which(occ_data_2[[i]]$occurrence == 1)) / 2){
+    
+    #check whether the variables are not too correlate
+  }
+}
+
+cbind(data_model2$occurrence, vals)
 
 #fix col names
 names(vals2)[1] <- 'occurrence'
