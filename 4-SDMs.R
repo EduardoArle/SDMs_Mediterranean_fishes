@@ -3,7 +3,7 @@
 ################################################################################
 
 #load packages
-library(sf); library(terra); library(data.table); library(sdm)
+library(sf); library(terra); library(data.table); library(sdm); library(usdm)
 library(sp); library(raster) #for the sdm pakcage
 
 #list WDs
@@ -80,6 +80,10 @@ vals_maxT <- lapply(occ_data_sp, function(x){
   as.data.frame(extract(vars_maxT, x))
 })
 
+
+
+
+
 #prepare data frames (only species with enough data and no corel issues)
 vals_minT_2 <- list()
 for(i in length(vals_minT))
@@ -93,6 +97,11 @@ for(i in length(vals_minT))
 }
 
 cbind(data_model2$occurrence, vals)
+
+
+
+
+
 
 #fix col names
 names(vals2)[1] <- 'occurrence'
