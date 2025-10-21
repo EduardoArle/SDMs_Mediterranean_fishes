@@ -10,8 +10,9 @@ library(sp); library(raster) #for the sdm pakcage
 wd_pr_pa <- '/Users/carloseduardoaribeiro/Documents/Post-doc/ENMs_med/pr_PA'
 wd_vars_pr <- '/Users/carloseduardoaribeiro/Documents/Post-doc/ENMs_med/Variables/BioOracle/Processed_present'
 wd_vars_2090 <- '/Users/carloseduardoaribeiro/Documents/Post-doc/ENMs_med/Variables/BioOracle/Processed_2090_ssp585'
+wd_SDM_data <- '/Users/carloseduardoaribeiro/Documents/Post-doc/ENMs_med/SDM_data'
 wd_models <- '/Users/carloseduardoaribeiro/Documents/Post-doc/ENMs_med/Models'
-wd_evaluation <- '/Users/carloseduardoaribeiro/Documents/Post-doc/ENMs_med/Model_evaluation'
+wd_eval <- '/Users/carloseduardoaribeiro/Documents/Post-doc/ENMs_med/Evaluation'
 wd_projections <- '/Users/carloseduardoaribeiro/Documents/Post-doc/ENMs_med/Model_projections'
 wd_proj_future <- '/Users/carloseduardoaribeiro/Documents/Post-doc/ENMs_med/Model_projections_2090'
 
@@ -62,7 +63,7 @@ occ_data_sp <- occ_data_2
 for(i in 1:length(occ_data_sp))
 {
   coordinates(occ_data_sp[[i]]) <- ~ lon + lat
-  proj4string(occ_data_sp[[i]]) <- crs(vars)
+  proj4string(occ_data_sp[[i]]) <- crs(vars[[1]])
   
   print(i)
 }
@@ -81,79 +82,186 @@ vals_maxT <- lapply(occ_data_sp, function(x){
 })
 
 
-
-
-
 #prepare data frames (only species with enough data and no corel issues)
 vals_minT_2 <- list()
-for(i in length(vals_minT))
+for(i in 1:length(vals_minT))
 {
   #check whether there are at least half PA as pr
   if(length(which(occ_data_2[[i]]$occurrence == 0)) >= 
      length(which(occ_data_2[[i]]$occurrence == 1)) / 2){
     
     #check whether the variables are not too correlate
+    cor <- vifcor(vals_minT[[i]], th = 0.7)
+    
+    if(length(cor@excluded) == 0){
+      
+      vals_minT_2[[length(vals_minT_2) + 1]] <- cbind(occ_data_2[[i]],
+                                                      vals_minT[[i]])
+      
+      names(vals_minT_2)[length(vals_minT_2)] <- names(vals_minT)[i]
+    }
   }
+  print(i)
 }
 
-cbind(data_model2$occurrence, vals)
+vals_meanT_2 <- list()
+for(i in 1:length(vals_meanT))
+{
+  #check whether there are at least half PA as pr
+  if(length(which(occ_data_2[[i]]$occurrence == 0)) >= 
+     length(which(occ_data_2[[i]]$occurrence == 1)) / 2){
+    
+    #check whether the variables are not too correlate
+    cor <- vifcor(vals_meanT[[i]], th = 0.7)
+    
+    if(length(cor@excluded) == 0){
+      
+      vals_meanT_2[[length(vals_meanT_2) + 1]] <- cbind(occ_data_2[[i]],
+                                                        vals_meanT[[i]])
+      
+      names(vals_meanT_2)[length(vals_meanT_2)] <- names(vals_meanT)[i]
+    }
+  }
+  print(i)
+}
 
-
-
-
-
-
-#fix col names
-names(vals2)[1] <- 'occurrence'
+vals_maxT_2 <- list()
+for(i in 1:length(vals_maxT))
+{
+  #check whether there are at least half PA as pr
+  if(length(which(occ_data_2[[i]]$occurrence == 0)) >= 
+     length(which(occ_data_2[[i]]$occurrence == 1)) / 2){
+    
+    #check whether the variables are not too correlate
+    cor <- vifcor(vals_maxT[[i]], th = 0.7)
+    
+    if(length(cor@excluded) == 0){
+      
+      vals_maxT_2[[length(vals_maxT_2) + 1]] <- cbind(occ_data_2[[i]],
+                                                      vals_maxT[[i]])
+      
+      names(vals_maxT_2)[length(vals_maxT_2)] <- names(vals_maxT)[i]
+    }
+  }
+  print(i)
+}
 
 #prepare data object
-data_obj <- sdmData(formmula = occurrence ~ . + coords(lon+lat),
-                    train = vals2)
+data_obj_minT <- lapply(vals_minT_2, function(x){
+  sdmData(formmula = occurrence ~ . + coords(lon+lat), train = x)
+})
+                        
+data_obj_meanT <- lapply(vals_meanT_2, function(x){
+  sdmData(formmula = occurrence ~ . + coords(lon+lat), train = x)
+})
+
+data_obj_maxT <- lapply(vals_maxT_2, function(x){
+  sdmData(formmula = occurrence ~ . + coords(lon+lat), train = x)
+})
+
+#save sdmData objects
+setwd(wd_SDM_data)
+
+mapply(function(x, y) {
+  write.sdm(x, paste0('sdmData_', y, '_minT'))},
+  data_obj_minT, names(data_obj_minT))
+
+mapply(function(x, y) {
+  write.sdm(x, paste0('sdmData_', y, '_meanT'))},
+  data_obj_meanT, names(data_obj_meanT))
+
+mapply(function(x, y) {
+  write.sdm(x, paste0('sdmData_', y, '_maxT'))},
+  data_obj_maxT, names(data_obj_maxT))
 
 #run models
-sdm <- sdm(occurrence ~ ., data = data_obj,
-           methods = c('fda', 'glm', 'mars', 'maxlike',
-                       'mda', 'gam', 'rf', 'svm'), 
-               replication = 'cv', cv.folds = 5, n = 5)
+sdm_minT <- lapply(data_obj_minT, function(x){
+  sdm(occurrence ~ ., data = x,
+      methods = c('brt', 'cart', 'fda', 'glm', 'mars', 'maxlike',
+                  'mda', 'gam', 'rf', 'svm'), 
+      replication = 'cv', cv.folds = 5, n = 5)
+})
 
-#run models
-sdm <- sdm(occurrence ~ ., data = data_obj,
-           methods = c('glm', 'maxlike',
-                       'gam', 'rf'), 
-           replication = 'cv', cv.folds = 5, n = 5)
+sdm_meanT <- lapply(data_obj_meanT, function(x){
+  sdm(occurrence ~ ., data = x,
+      methods = c('brt', 'cart', 'fda', 'glm', 'mars', 'maxlike',
+                  'mda', 'gam', 'rf', 'svm'), 
+      replication = 'cv', cv.folds = 5, n = 5)
+})
 
-gui(sdm)
+sdm_maxT <- lapply(data_obj_maxT, function(x){
+  sdm(occurrence ~ ., data = x,
+      methods = c('brt', 'cart', 'fda', 'glm', 'mars', 'maxlike',
+                  'mda', 'gam', 'rf', 'svm'), 
+      replication = 'cv', cv.folds = 5, n = 5)
+})
+
 
 #save model objects
 setwd(wd_models)
-write.sdm(sdm, 'Epinephelus_aeneus')
+
+mapply(function(x, y) {
+  write.sdm(x, paste0('models_', y, '_minT'))},
+  sdm_minT, names(sdm_minT))
+
+mapply(function(x, y) {
+  write.sdm(x, paste0('models_', y, '_meanT'))},
+  sdm_meanT, names(sdm_meanT))
+
+mapply(function(x, y) {
+  write.sdm(x, paste0('models_', y, '_maxT'))},
+  sdm_maxT, names(sdm_maxT))
 
 
 #get model evaluation
-eval <- getEvaluation(sdm, w = 1:100,
-                          wtest='test.dep', 
-                          stat=c('AUC','TSS','th'), opt = 2)
+eval_minT <- lapply(sdm_minT, function(x){
+  getEvaluation(x, w = 1:250,
+                wtest='test.dep', 
+                stat=c('AUC','TSS','th'), opt = 2)
+})
+
+eval_meanT <- lapply(sdm_meanT, function(x){
+  getEvaluation(x, w = 1:250,
+                wtest='test.dep', 
+                stat=c('AUC','TSS','th'), opt = 2)
+})
 
 
-#include column informing algorithm
-eval$Algorithm <- NA
-eval$Algorithm[1:25] <- 'fda'
-eval$Algorithm[26:50] <- 'glm'
-eval$Algorithm[51:75] <- 'mars'
-eval$Algorithm[76:100] <- 'maxlike'
-eval$Algorithm[101:125] <- 'mda'
-eval$Algorithm[126:150] <- 'gam'
-eval$Algorithm[151:175] <- 'rf'
-eval$Algorithm[176:200] <- 'svm'
+eval_maxT <- lapply(sdm_maxT, function(x){
+  getEvaluation(x, w = 1:250,
+                wtest='test.dep', 
+                stat=c('AUC','TSS','th'), opt = 2)
+})
+
 
 #save evaluation metrics
-setwd(wd_evaluation)
-write.csv(eval, 'Eval_Epinephelus_aeneus.csv')
+setwd(wd_eval)
+
+mapply(function(x, y) {
+  write.csv(x, paste0('eval_model_', y, '_minT.csv'), row.names = F)},
+  eval_minT, names(eval_minT))
+
+mapply(function(x, y) {
+  write.csv(x, paste0('eval_model_', y, '_meanT.csv'), row.names = F)},
+  eval_meanT, names(eval_meanT))
+
+mapply(function(x, y) {
+  write.csv(x, paste0('eval_model_', y, '_maxT.csv'), row.names = F)},
+  eval_maxT, names(eval_maxT))
 
 
-#list models with TSS higher than 0.5
-sel_TSS <- which(eval$TSS >= 0.4)
+#select models with TSS higher than 0.5 and AUC higher than 0.7
+sel_minT <- lapply(eval_minT, function(x){
+  x[which(x$TSS >= 0.5 & x$AUC >= 0.7),]
+})
 
+sel_meanT <- lapply(eval_meanT, function(x){
+  x[which(x$TSS >= 0.5 & x$AUC >= 0.7),]
+})
+
+sel_maxT <- lapply(eval_maxT, function(x){
+  x[which(x$TSS >= 0.5 & x$AUC >= 0.7),]
+})
 
 
 ###################
@@ -161,16 +269,48 @@ sel_TSS <- which(eval$TSS >= 0.4)
 ###################
 
 
-#project models
+#project all selected models
 setwd(wd_projections)
 
-pred_pr <- list()
-for(i in 1:100)
+for(i in 1:length(sdm_minT))
 {
-  pred_pr[[i]] <- predict(sdm, id = i, newdata = vars, 
-              filename = paste0('Epinephelus_aeneus_', i, '_',
-                                eval$Algorithm[i], '.grd'))
+  for(j in 1:nrow(sel_minT[[i]]))
+  {
+    predict(sdm_minT[[i]], id = sel_minT[[i]]$modelID[j], newdata = vars_minT, 
+            filename = paste0('Pred_', names(sdm_minT[i]), '_minT_',
+                              sel_minT[[i]]$modelID[j], '.grd'))
+  }
 }
+
+
+for(i in 1:length(sdm_meanT))
+{
+  for(j in 1:nrow(sel_meanT[[i]]))
+  {
+    predict(sdm_meanT[[i]], id = sel_meanT[[i]]$modelID[j], newdata = vars_meanT, 
+            filename = paste0('Pred_', names(sdm_meanT[i]), '_meanT_',
+                              sel_meanT[[i]]$modelID[j], '.grd'))
+  }
+}
+
+
+for(i in 1:length(sdm_maxT))
+{
+  for(j in 1:nrow(sel_maxT[[i]]))
+  {
+    predict(sdm_maxT[[i]], id = sel_maxT[[i]]$modelID[j], newdata = vars_maxT, 
+            filename = paste0('Pred_', names(sdm_maxT[i]), '_maxT_',
+                              sel_maxT[[i]]$modelID[j], '.grd'))
+    print(j)
+  }
+}
+
+
+
+
+
+
+
 
 
 
@@ -191,14 +331,16 @@ for(i in 1:200)
 
 
 
+
+
+
+
 ##### load and process projections
 
 
 ###################
 ##### PRESENT #####
 ###################
-
-
 
 #load present 
 setwd(wd_projections)
